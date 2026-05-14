@@ -20,5 +20,10 @@
   "requiredEntitlements": [],
   "minMcpProtocolVersion": "2025-06-18",
   "maxMcpProtocolVersion": null,
-  "signature": null
+  "signature": null,
+  "updateSource": {
+    "type": "github-releases",
+    "repo": "ryanhebert/WinMCP-Modules",
+    "asset": "MathModule-{version}.zip"
+  }
 }

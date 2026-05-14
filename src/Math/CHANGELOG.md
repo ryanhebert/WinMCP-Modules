@@ -10,6 +10,9 @@ All notable changes to the Math WinMCP module.
 - Tools: `add`, `subtract`, `multiply`, `divide`
 - Prompts: `solve-expression`, `compare-numbers`
 - Resources: `math://constants`, `math://identities`, `math://primes`
+- `updateSource` block — points at this repo's `math-v*` releases with
+  the `MathModule-{version}.zip` asset, so the WinMCP dashboard's
+  per-module Upgrade button picks up newer math releases automatically.
 
 ### Notes
 - Mounts at `/math/mcp` on the WinMCP platform
