@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>MathModule</AssemblyName>
+    <RootNamespace>WinMcpModule.Math</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!-- Module versioning. Keep aligned with module.json's "version" field;
+         the platform's loader verifies they match. -->
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+
+    <!-- Don't produce a NuGet package for this assembly — modules ship as
+         release-attached zips, not via NuGet. -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WinMcp.ModuleSdk" Version="1.0.0-alpha.1" />
+  </ItemGroup>
+
+  <!-- Pack the manifest into the build output so a downstream packaging
+       step can copy MathModule.dll + module.json from the same directory. -->
+  <ItemGroup>
+    <None Include="module.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

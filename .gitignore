@@ -1,6 +1,11 @@
 ## .NET build output
 bin/
 obj/
+
+## Local NuGet feed for pre-release SDK packages during dev
+local-packages/*.nupkg
+local-packages/*.snupkg
+
 *.user
 *.suo
 *.userosscache
