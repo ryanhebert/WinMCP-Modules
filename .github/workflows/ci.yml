@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  build-modules:
+    name: build modules (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build all modules
+        shell: bash
+        run: |
+          if ls src/*/*.csproj >/dev/null 2>&1; then
+            dotnet restore
+            dotnet build --configuration Release --no-restore
+          else
+            echo "No module projects yet; skipping build."
+          fi
+
+      - name: Validate every module.json
+        shell: bash
+        run: |
+          if ls src/*/module.json >/dev/null 2>&1; then
+            for f in src/*/module.json; do
+              echo "Validating $f"
+              python3 -c "import json,sys; json.load(open('$f'))"
+            done
+          else
+            echo "No module.json files yet; skipping validation."
+          fi
+
+  validate-workflows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: actionlint
+        run: |
+          bash <(curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color
