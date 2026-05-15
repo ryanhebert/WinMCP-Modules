@@ -2,9 +2,14 @@
 bin/
 obj/
 
-## Local NuGet feed for pre-release SDK packages during dev
+## Local NuGet feed for pre-release SDK packages during dev.
+## We vendor the published-but-not-yet-on-nuget.org WinMcp.ModuleSdk package
+## here so CI (and contributors) can restore without depending on a private
+## feed. Once the SDK lands on nuget.org, drop the negation and re-ignore
+## the directory contents.
 local-packages/*.nupkg
 local-packages/*.snupkg
+!local-packages/WinMcp.ModuleSdk.*.nupkg
 
 *.user
 *.suo
@@ -24,6 +29,9 @@ WinMCP.exe
 *.snupkg
 .nuget/
 packages/
+# Vendored SDK package (see local-packages note above) — must come AFTER
+# the blanket *.nupkg rule so the negation wins.
+!local-packages/WinMcp.ModuleSdk.*.nupkg
 
 ## Test results
 TestResults/
