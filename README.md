@@ -6,15 +6,17 @@ Each module is a self-contained MCP server that runs inside the WinMCP host proc
 
 ## Available modules
 
-| Module | Status | Description |
+| Module | Latest | Description |
 |---|---|---|
-| [math](src/Math) | pre-1.0 | Arithmetic tools, constants, identities |
+| [math](src/Math) | [`math-v1.0.0`](https://github.com/ryanhebert/WinMCP-Modules/releases/tag/math-v1.0.0) | Arithmetic tools, constants, identities |
 
 (More to come.)
 
 ## Installing a module
 
-Once WinMCP v1.0.0 ships, modules are installable from the platform's dashboard. For the v1.0 development period, drop the module's release zip into `C:\Program Files\WinMCP\modules\<name>\` and restart the `WinMcp` service.
+Download the module's release zip from its GitHub release, extract it into `C:\Program Files\WinMCP\modules\<name>\` (directory name must match the `name` field in `module.json`), and restart the `WinMcp` service. The dashboard will then show the module with its mount path, maturity, and tool/prompt/resource counts.
+
+Once a module is installed and declares an `updateSource` block in its manifest, the dashboard's per-module **Upgrade ↑** button handles subsequent version bumps end-to-end — no manual download needed.
 
 ## Building your own module
 
