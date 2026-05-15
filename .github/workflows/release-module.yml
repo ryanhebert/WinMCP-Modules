@@ -49,9 +49,11 @@ jobs:
           rc="${BASH_REMATCH[3]}"
           prerelease="false"
           if [ -n "$rc" ]; then prerelease="true"; fi
-          echo "module=$module"             >> "$GITHUB_OUTPUT"
-          echo "version=$version"           >> "$GITHUB_OUTPUT"
-          echo "prerelease=$prerelease"     >> "$GITHUB_OUTPUT"
+          {
+            echo "module=$module"
+            echo "version=$version"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
           echo "Parsed: module=$module version=$version prerelease=$prerelease"
 
       - name: Locate module directory
@@ -72,7 +74,7 @@ jobs:
             echo "::error::No src/*/module.json declares name=\"$module\"."
             exit 1
           fi
-          csproj=$(ls "$mod_dir"/*.csproj | head -1)
+          csproj=$(find "$mod_dir" -maxdepth 1 -name '*.csproj' -print -quit)
           if [ -z "$csproj" ] || [ ! -f "$csproj" ]; then
             echo "::error::No .csproj found in $mod_dir."
             exit 1
@@ -82,9 +84,11 @@ jobs:
             echo "::error::$csproj missing <AssemblyName>."
             exit 1
           fi
-          echo "mod_dir=$mod_dir"       >> "$GITHUB_OUTPUT"
-          echo "csproj=$csproj"         >> "$GITHUB_OUTPUT"
-          echo "assembly=$assembly"     >> "$GITHUB_OUTPUT"
+          {
+            echo "mod_dir=$mod_dir"
+            echo "csproj=$csproj"
+            echo "assembly=$assembly"
+          } >> "$GITHUB_OUTPUT"
           echo "Located: dir=$mod_dir csproj=$csproj assembly=$assembly"
 
       - name: Verify tag matches csproj + module.json
