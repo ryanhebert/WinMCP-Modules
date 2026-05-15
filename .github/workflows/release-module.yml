@@ -1,0 +1,189 @@
+name: release-module
+
+on:
+  push:
+    tags:
+      - '*-v*'
+
+# Each module in this repo is released independently under the tag convention
+# `<module>-v<MAJOR>.<MINOR>.<PATCH>` (e.g. `math-v1.0.0`, `weather-v0.2.1`).
+# This workflow:
+#   1. Parses the tag into <module> + <version>.
+#   2. Locates the matching module directory by matching `name` in module.json.
+#   3. Verifies csproj <Version> and module.json "version" agree with the tag.
+#   4. Builds the module in Release.
+#   5. Zips `<Module>Module.dll` + `module.json` as `<Module>Module-v<version>.zip`
+#      — the asset name the platform's `updateSource.asset` template resolves to
+#      when `{version}` is substituted.
+#   6. Extracts release notes from the module's CHANGELOG.
+#   7. Creates a GitHub Release (pre-release for `-rc*` tags).
+
+permissions:
+  contents: write  # required to create releases + upload assets
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Parse tag
+        id: parse
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"            # e.g. math-v1.0.0
+          if [[ ! "$tag" =~ ^([a-z][a-z0-9-]*)-v([0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?)$ ]]; then
+            echo "::error::Tag $tag does not match <module>-v<semver> pattern."
+            exit 1
+          fi
+          module="${BASH_REMATCH[1]}"
+          version="${BASH_REMATCH[2]}"
+          rc="${BASH_REMATCH[3]}"
+          prerelease="false"
+          if [ -n "$rc" ]; then prerelease="true"; fi
+          echo "module=$module"             >> "$GITHUB_OUTPUT"
+          echo "version=$version"           >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease"     >> "$GITHUB_OUTPUT"
+          echo "Parsed: module=$module version=$version prerelease=$prerelease"
+
+      - name: Locate module directory
+        id: locate
+        run: |
+          set -euo pipefail
+          module="${{ steps.parse.outputs.module }}"
+          mod_dir=""
+          for d in src/*/; do
+            [ -f "$d/module.json" ] || continue
+            n=$(python3 -c "import json,sys; print(json.load(open('$d/module.json'))['name'])")
+            if [ "$n" = "$module" ]; then
+              mod_dir="${d%/}"
+              break
+            fi
+          done
+          if [ -z "$mod_dir" ]; then
+            echo "::error::No src/*/module.json declares name=\"$module\"."
+            exit 1
+          fi
+          csproj=$(ls "$mod_dir"/*.csproj | head -1)
+          if [ -z "$csproj" ] || [ ! -f "$csproj" ]; then
+            echo "::error::No .csproj found in $mod_dir."
+            exit 1
+          fi
+          assembly=$(python3 -c "import re,sys; t=open('$csproj').read(); m=re.search(r'<AssemblyName>([^<]+)</AssemblyName>', t); print(m.group(1) if m else '')")
+          if [ -z "$assembly" ]; then
+            echo "::error::$csproj missing <AssemblyName>."
+            exit 1
+          fi
+          echo "mod_dir=$mod_dir"       >> "$GITHUB_OUTPUT"
+          echo "csproj=$csproj"         >> "$GITHUB_OUTPUT"
+          echo "assembly=$assembly"     >> "$GITHUB_OUTPUT"
+          echo "Located: dir=$mod_dir csproj=$csproj assembly=$assembly"
+
+      - name: Verify tag matches csproj + module.json
+        run: |
+          set -euo pipefail
+          version="${{ steps.parse.outputs.version }}"
+          csproj="${{ steps.locate.outputs.csproj }}"
+          mod_dir="${{ steps.locate.outputs.mod_dir }}"
+          csproj_version=$(grep -oP '(?<=<Version>)[^<]+' "$csproj")
+          manifest_version=$(python3 -c "import json; print(json.load(open('$mod_dir/module.json'))['version'])")
+          if [ "$csproj_version" != "$version" ]; then
+            echo "::error::Tag version $version does not match $csproj <Version>$csproj_version</Version>."
+            exit 1
+          fi
+          if [ "$manifest_version" != "$version" ]; then
+            echo "::error::Tag version $version does not match $mod_dir/module.json \"version\": \"$manifest_version\"."
+            exit 1
+          fi
+          echo "Versions agree: $version"
+
+      - name: Build module (Release)
+        run: |
+          dotnet restore "${{ steps.locate.outputs.csproj }}"
+          dotnet build "${{ steps.locate.outputs.csproj }}" \
+            --configuration Release --no-restore
+
+      - name: Stage and zip
+        id: pkg
+        run: |
+          set -euo pipefail
+          mod_dir="${{ steps.locate.outputs.mod_dir }}"
+          assembly="${{ steps.locate.outputs.assembly }}"
+          version="${{ steps.parse.outputs.version }}"
+          out_dir="$mod_dir/bin/Release/net8.0"
+          if [ ! -f "$out_dir/$assembly.dll" ]; then
+            echo "::error::Expected $out_dir/$assembly.dll after build, not found."
+            ls -la "$out_dir" || true
+            exit 1
+          fi
+          if [ ! -f "$out_dir/module.json" ]; then
+            echo "::error::module.json missing from $out_dir (expected CopyToOutputDirectory)."
+            exit 1
+          fi
+          stage="staging"
+          rm -rf "$stage"
+          mkdir -p "$stage"
+          cp "$out_dir/$assembly.dll" "$stage/"
+          cp "$out_dir/module.json"   "$stage/"
+          zip_name="${assembly}-v${version}.zip"
+          (cd "$stage" && zip -r "../$zip_name" .)
+          ls -la "$zip_name"
+          echo "zip=$zip_name" >> "$GITHUB_OUTPUT"
+
+      - name: Extract release notes from CHANGELOG
+        id: notes
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          mod_dir="${{ steps.locate.outputs.mod_dir }}"
+          changelog="$mod_dir/CHANGELOG.md"
+          # Prefer the section whose header matches the tag — e.g. for tag
+          # math-v1.0.0, pull the "## [math-v1.0.0]" block. Fall back to
+          # [Unreleased] if no matching block exists yet.
+          if [ ! -f "$changelog" ]; then
+            echo "Release ${tag}." > release-notes.md
+          else
+            awk -v tag="$tag" '
+              $0 ~ "^## \\[" tag "\\]"  { capture=1; next }
+              /^## \[/                  { if (capture) exit }
+              capture                   { print }
+            ' "$changelog" > release-notes.md
+            if [ ! -s release-notes.md ]; then
+              echo "::warning::No [$tag] block in $changelog; falling back to [Unreleased]."
+              awk '
+                /^## \[Unreleased\]/  { capture=1; next }
+                /^## \[/              { if (capture) exit }
+                capture                { print }
+              ' "$changelog" > release-notes.md
+            fi
+            if [ ! -s release-notes.md ]; then
+              echo "Release ${tag}." > release-notes.md
+            fi
+          fi
+          echo "---- release notes ----"
+          cat release-notes.md
+          echo "-----------------------"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          prerelease_flag=""
+          if [ "${{ steps.parse.outputs.prerelease }}" = "true" ]; then
+            prerelease_flag="--prerelease"
+          fi
+          gh release create "$tag" \
+            "${{ steps.pkg.outputs.zip }}" \
+            --title "$tag" \
+            --notes-file release-notes.md \
+            $prerelease_flag

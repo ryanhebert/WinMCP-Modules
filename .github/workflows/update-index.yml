@@ -1,0 +1,100 @@
+name: update-index
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# Regenerates `modules.json` whenever a module release is published.
+# Reads each `src/<Module>/module.json` at HEAD and pairs it with the
+# latest stable `<name>-v*` tag (pre-releases excluded) to populate
+# `latestVersion` + the release download URL. Commits the regenerated
+# index back to `main` if it differs from what's already there.
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    # Skip the run if the publishing release is a pre-release; pre-releases
+    # are not eligible to populate the registry (see docs/PUBLISHING.md).
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Regenerate modules.json
+        run: |
+          python3 <<'PY'
+          import glob, json, os, re, subprocess, sys
+
+          REPO = os.environ.get("GITHUB_REPOSITORY", "ryanhebert/WinMCP-Modules")
+
+          def latest_stable_tag(module_name: str) -> str | None:
+              # All tags matching <module>-v*, newest first by version sort
+              out = subprocess.run(
+                  ["git", "tag", "-l", f"{module_name}-v*", "--sort=-v:refname"],
+                  check=True, capture_output=True, text=True,
+              ).stdout.splitlines()
+              for t in out:
+                  if re.fullmatch(rf"{re.escape(module_name)}-v\d+\.\d+\.\d+", t):
+                      return t
+              return None
+
+          entries = []
+          for manifest_path in sorted(glob.glob("src/*/module.json")):
+              with open(manifest_path) as f:
+                  m = json.load(f)
+              name = m["name"]
+              tag = latest_stable_tag(name)
+              if not tag:
+                  # Module exists in source but has never had a stable release.
+                  # Skip — the registry only tracks released modules.
+                  print(f"skip {name}: no stable tag yet")
+                  continue
+              version = tag.split("-v", 1)[1]
+              assembly_zip = f"{os.path.splitext(os.path.basename(m['assembly']))[0]}-v{version}.zip"
+              entry = {
+                  "name": name,
+                  "displayName": m.get("displayName", name),
+                  "description": m.get("description", ""),
+                  "latestVersion": version,
+                  "minPlatformVersion": m["minPlatformVersion"],
+                  "maturity": m.get("maturity", "experimental"),
+                  "homepage": m.get("homepage"),
+                  "tags": m.get("tags", []),
+                  "downloadUrl": f"https://github.com/{REPO}/releases/download/{tag}/{assembly_zip}",
+                  "tag": tag,
+              }
+              entries.append(entry)
+              print(f"add  {name} {version} ({tag})")
+
+          registry = {"schemaVersion": "1.0", "officialModules": entries}
+          with open("modules.json", "w") as f:
+              json.dump(registry, f, indent=2)
+              f.write("\n")
+          print("modules.json regenerated.")
+          PY
+
+      - name: Commit + push if changed
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet modules.json; then
+            echo "modules.json unchanged — nothing to commit."
+            exit 0
+          fi
+          git add modules.json
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            msg="chore(registry): regenerate modules.json (manual)"
+          else
+            msg="chore(registry): refresh modules.json for ${{ github.event.release.tag_name }}"
+          fi
+          git commit -m "$msg"
+          git push origin main
