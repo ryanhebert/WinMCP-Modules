@@ -1,4 +1,22 @@
 {
   "schemaVersion": "1.0",
-  "officialModules": []
+  "officialModules": [
+    {
+      "name": "math",
+      "displayName": "Math",
+      "description": "Arithmetic tools, constants, identities, and prime-list resources. The original demo module \u2014 ported from the standalone math-mcp server.",
+      "latestVersion": "1.0.0",
+      "minPlatformVersion": "1.0.0",
+      "maturity": "demo",
+      "homepage": "https://github.com/ryanhebert/WinMCP-Modules/tree/main/src/Math",
+      "tags": [
+        "math",
+        "demo",
+        "tools",
+        "arithmetic"
+      ],
+      "downloadUrl": "https://github.com/ryanhebert/WinMCP-Modules/releases/download/math-v1.0.0/MathModule-v1.0.0.zip",
+      "tag": "math-v1.0.0"
+    }
+  ]
 }
