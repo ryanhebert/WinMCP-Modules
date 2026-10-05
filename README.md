@@ -23,9 +23,11 @@ Once a module is installed and declares an `updateSource` block in its manifest,
 See [docs/BUILDING-A-MODULE.md](docs/BUILDING-A-MODULE.md) for the developer guide. Short version:
 
 ```bash
+# the SDK isn't on nuget.org yet: build it from the WinMCP repo into a local feed
+dotnet pack ../WinMCP/src/ModuleSdk/WinMcp.ModuleSdk.csproj -c Release -o ./local-packages
 dotnet new classlib -n MyModule
 cd MyModule
-dotnet add package WinMcp.ModuleSdk
+dotnet add package WinMcp.ModuleSdk --version 1.0.0-alpha.1 --source ../local-packages
 # implement IMcpModule; add MCP tools/prompts/resources
 dotnet pack
 ```

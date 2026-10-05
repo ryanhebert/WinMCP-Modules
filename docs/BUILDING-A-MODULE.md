@@ -1,7 +1,7 @@
 # Building a WinMCP module
 
 A module is a .NET class library that:
-1. References `WinMcp.ModuleSdk` (NuGet)
+1. References `WinMcp.ModuleSdk` (built from the [WinMCP](https://github.com/ryanhebert/WinMCP) repo; not on nuget.org yet)
 2. Implements `IMcpModule` to register MCP tools/prompts/resources
 3. Ships a `module.json` manifest alongside its DLL
 
@@ -9,10 +9,17 @@ This guide walks through the minimum needed to ship a working module.
 
 ## Project setup
 
+The SDK isn't published to nuget.org yet. Build it from the WinMCP repo into a local package folder first, and point your project at that folder with a `nuget.config` (this repo's own [nuget.config](../nuget.config) does the same with `./local-packages`):
+
+```bash
+git clone https://github.com/ryanhebert/WinMCP
+dotnet pack WinMCP/src/ModuleSdk/WinMcp.ModuleSdk.csproj -c Release -o ./local-packages
+```
+
 ```bash
 dotnet new classlib -n WinMcpModule.Hello -f net8.0
 cd WinMcpModule.Hello
-dotnet add package WinMcp.ModuleSdk
+dotnet add package WinMcp.ModuleSdk --version 1.0.0-alpha.1 --source ../local-packages
 dotnet add package ModelContextProtocol --version 1.2.0
 ```
 
@@ -28,7 +35,7 @@ Edit `WinMcpModule.Hello.csproj` to set the target framework and assembly name:
     <Version>1.0.0</Version>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="WinMcp.ModuleSdk" Version="1.0.0" />
+    <PackageReference Include="WinMcp.ModuleSdk" Version="1.0.0-alpha.1" />
     <PackageReference Include="ModelContextProtocol" Version="1.2.0" />
   </ItemGroup>
 </Project>
